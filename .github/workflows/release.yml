@@ -4,75 +4,41 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x64
-            os: ubuntu-22.04
-            args: --bundles appimage,deb
-          - name: windows-x64
-            os: windows-latest
-            args: --bundles nsis
-          - name: macos-x64
-            os: macos-latest
-            args: --target x86_64-apple-darwin
-            rust_target: x86_64-apple-darwin
-          - name: macos-arm64
-            os: macos-latest
-            args: --target aarch64-apple-darwin
-            rust_target: aarch64-apple-darwin
+  windows:
+    name: Build Windows portable
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build WinForms app
+        run: msbuild windows\CsvHash.WinForms\CsvHash.WinForms.csproj /p:Configuration=Release /p:Platform=AnyCPU /m
+
+      - name: Package portable executable
+        shell: pwsh
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          New-Item -ItemType Directory -Force dist-release
+          Copy-Item windows/CsvHash.WinForms/bin/Release/CSV.Hash.exe dist-release/CSV.Hash.exe
+          Compress-Archive -Path dist-release/CSV.Hash.exe -DestinationPath dist-release/CSV.Hash_${{ github.ref_name }}_windows-portable.zip -Force
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          node-version: lts/*
-          cache: npm
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target || '' }}
-
-      - name: Cache Rust artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Build and publish Tauri release
-        uses: tauri-apps/tauri-action@v0
+          files: dist-release/CSV.Hash_${{ github.ref_name }}_windows-portable.zip
+          tag_name: ${{ github.ref_name }}
+          name: CSV Hash ${{ github.ref_name }}
+          body: CSV Hash WinForms desktop client release.
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "CSV Hash ${{ github.ref_name }}"
-          releaseBody: "CSV Hash desktop client release."
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
