@@ -12,6 +12,10 @@ namespace CsvHash.WinForms
         private readonly Button _browseButton;
         private readonly ComboBox _delimiterComboBox;
         private readonly TextBox _customDelimiterTextBox;
+        private readonly ComboBox _algorithmComboBox;
+        private readonly ComboBox _encodingComboBox;
+        private readonly Label _seedLabel;
+        private readonly TextBox _seedTextBox;
         private readonly CheckedListBox _fieldsCheckedListBox;
         private readonly Button _selectAllButton;
         private readonly Button _clearButton;
@@ -79,8 +83,9 @@ namespace CsvHash.WinForms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3
+                RowCount = 4
             };
+            middlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             middlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             middlePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             middlePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -122,6 +127,66 @@ namespace CsvHash.WinForms
             _customDelimiterTextBox.Leave += DelimiterChanged;
             delimiterPanel.Controls.Add(_customDelimiterTextBox);
 
+            var optionsPanel = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Dock = DockStyle.Top,
+                FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(0, 8, 0, 0),
+                WrapContents = true
+            };
+            middlePanel.Controls.Add(optionsPanel, 0, 1);
+
+            optionsPanel.Controls.Add(new Label
+            {
+                AutoSize = true,
+                Margin = new Padding(0, 6, 8, 0),
+                Text = "算法"
+            });
+
+            _algorithmComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 130
+            };
+            _algorithmComboBox.Items.AddRange(new object[] { "MD5", "SHA256", "SHA512", "SM3", "AES-CBC" });
+            _algorithmComboBox.SelectedIndex = 1;
+            _algorithmComboBox.SelectedIndexChanged += AlgorithmChanged;
+            optionsPanel.Controls.Add(_algorithmComboBox);
+
+            optionsPanel.Controls.Add(new Label
+            {
+                AutoSize = true,
+                Margin = new Padding(16, 6, 8, 0),
+                Text = "字符编码"
+            });
+
+            _encodingComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 130
+            };
+            _encodingComboBox.Items.AddRange(new object[] { "UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE", "GBK" });
+            _encodingComboBox.SelectedIndex = 0;
+            _encodingComboBox.SelectedIndexChanged += EncodingChanged;
+            optionsPanel.Controls.Add(_encodingComboBox);
+
+            _seedLabel = new Label
+            {
+                AutoSize = true,
+                Enabled = false,
+                Margin = new Padding(16, 6, 8, 0),
+                Text = "密钥/Seed"
+            };
+            optionsPanel.Controls.Add(_seedLabel);
+
+            _seedTextBox = new TextBox
+            {
+                Enabled = false,
+                Width = 180
+            };
+            optionsPanel.Controls.Add(_seedTextBox);
+
             var fieldsHeaderPanel = new FlowLayoutPanel
             {
                 AutoSize = true,
@@ -129,7 +194,7 @@ namespace CsvHash.WinForms
                 FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(0, 16, 0, 6)
             };
-            middlePanel.Controls.Add(fieldsHeaderPanel, 0, 1);
+            middlePanel.Controls.Add(fieldsHeaderPanel, 0, 2);
 
             fieldsHeaderPanel.Controls.Add(new Label
             {
@@ -164,7 +229,7 @@ namespace CsvHash.WinForms
                 IntegralHeight = false
             };
             _fieldsCheckedListBox.ItemCheck += FieldsCheckedListBox_ItemCheck;
-            middlePanel.Controls.Add(_fieldsCheckedListBox, 0, 2);
+            middlePanel.Controls.Add(_fieldsCheckedListBox, 0, 3);
 
             var actionPanel = new FlowLayoutPanel
             {
@@ -246,12 +311,37 @@ namespace CsvHash.WinForms
             BeginInvoke(new Action(UpdateEncryptButton));
         }
 
+        private void AlgorithmChanged(object sender, EventArgs e)
+        {
+            var requiresSeed = string.Equals(GetAlgorithm(), "AES-CBC", StringComparison.OrdinalIgnoreCase);
+            _seedTextBox.Enabled = requiresSeed;
+            _seedLabel.Enabled = requiresSeed;
+        }
+
+        private void EncodingChanged(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(_filePathTextBox.Text))
+            {
+                LoadHeaders();
+            }
+        }
+
         private void EncryptButton_Click(object sender, EventArgs e)
         {
             try
             {
                 var fields = _fieldsCheckedListBox.CheckedItems.Cast<string>().ToArray();
-                var outputPath = CsvProcessor.EncryptFile(_filePathTextBox.Text, fields, GetDelimiter());
+                var options = new EncryptionOptions(GetAlgorithm(), GetEncodingName(), _seedTextBox.Text);
+                options.Validate();
+
+                var outputPath = PromptForOutputPath(_filePathTextBox.Text);
+                if (string.IsNullOrEmpty(outputPath))
+                {
+                    SetStatus("已取消保存。", false);
+                    return;
+                }
+
+                CsvProcessor.EncryptFile(_filePathTextBox.Text, outputPath, fields, GetDelimiter(), options);
                 SetStatus("已生成：" + outputPath, false);
             }
             catch (Exception ex)
@@ -264,7 +354,7 @@ namespace CsvHash.WinForms
         {
             try
             {
-                var headers = CsvProcessor.ReadHeaders(_filePathTextBox.Text, GetDelimiter());
+                var headers = CsvProcessor.ReadHeaders(_filePathTextBox.Text, GetDelimiter(), CsvProcessor.GetEncoding(GetEncodingName()));
                 _fieldsCheckedListBox.Items.Clear();
                 _fieldsCheckedListBox.Items.AddRange(headers.Cast<object>().ToArray());
 
@@ -308,6 +398,45 @@ namespace CsvHash.WinForms
             }
 
             return value;
+        }
+
+        private string GetAlgorithm()
+        {
+            return Convert.ToString(_algorithmComboBox.SelectedItem) ?? "SHA256";
+        }
+
+        private string GetEncodingName()
+        {
+            return Convert.ToString(_encodingComboBox.SelectedItem) ?? "UTF-8";
+        }
+
+        private static string GetDefaultOutputPath(string csvPath)
+        {
+            var directory = System.IO.Path.GetDirectoryName(csvPath);
+            var fileName = System.IO.Path.GetFileName(csvPath);
+
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return string.Empty;
+            }
+
+            return System.IO.Path.Combine(directory ?? string.Empty, "entry-" + fileName);
+        }
+
+        private string PromptForOutputPath(string csvPath)
+        {
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "CSV 文件 (*.csv)|*.csv|所有文件 (*.*)|*.*";
+                dialog.Title = "保存加密后的 CSV";
+                dialog.OverwritePrompt = true;
+
+                var defaultOutputPath = GetDefaultOutputPath(csvPath);
+                dialog.InitialDirectory = System.IO.Path.GetDirectoryName(defaultOutputPath) ?? string.Empty;
+                dialog.FileName = System.IO.Path.GetFileName(defaultOutputPath);
+
+                return dialog.ShowDialog(this) == DialogResult.OK ? dialog.FileName : string.Empty;
+            }
         }
 
         private void UpdateEncryptButton()
