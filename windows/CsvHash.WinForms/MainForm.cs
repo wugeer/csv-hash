@@ -14,8 +14,6 @@ namespace CsvHash.WinForms
         private readonly TextBox _customDelimiterTextBox;
         private readonly ComboBox _algorithmComboBox;
         private readonly ComboBox _encodingComboBox;
-        private readonly Label _seedLabel;
-        private readonly TextBox _seedTextBox;
         private readonly CheckedListBox _fieldsCheckedListBox;
         private readonly Button _selectAllButton;
         private readonly Button _clearButton;
@@ -149,9 +147,8 @@ namespace CsvHash.WinForms
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Width = 130
             };
-            _algorithmComboBox.Items.AddRange(new object[] { "MD5", "SHA256", "SHA512", "SM3", "AES-CBC" });
+            _algorithmComboBox.Items.AddRange(new object[] { "MD5", "SHA256", "SHA512", "SM3" });
             _algorithmComboBox.SelectedIndex = 1;
-            _algorithmComboBox.SelectedIndexChanged += AlgorithmChanged;
             optionsPanel.Controls.Add(_algorithmComboBox);
 
             optionsPanel.Controls.Add(new Label
@@ -170,22 +167,6 @@ namespace CsvHash.WinForms
             _encodingComboBox.SelectedIndex = 0;
             _encodingComboBox.SelectedIndexChanged += EncodingChanged;
             optionsPanel.Controls.Add(_encodingComboBox);
-
-            _seedLabel = new Label
-            {
-                AutoSize = true,
-                Enabled = false,
-                Margin = new Padding(16, 6, 8, 0),
-                Text = "密钥/Seed"
-            };
-            optionsPanel.Controls.Add(_seedLabel);
-
-            _seedTextBox = new TextBox
-            {
-                Enabled = false,
-                Width = 180
-            };
-            optionsPanel.Controls.Add(_seedTextBox);
 
             var fieldsHeaderPanel = new FlowLayoutPanel
             {
@@ -311,13 +292,6 @@ namespace CsvHash.WinForms
             BeginInvoke(new Action(UpdateEncryptButton));
         }
 
-        private void AlgorithmChanged(object sender, EventArgs e)
-        {
-            var requiresSeed = string.Equals(GetAlgorithm(), "AES-CBC", StringComparison.OrdinalIgnoreCase);
-            _seedTextBox.Enabled = requiresSeed;
-            _seedLabel.Enabled = requiresSeed;
-        }
-
         private void EncodingChanged(object sender, EventArgs e)
         {
             if (!string.IsNullOrEmpty(_filePathTextBox.Text))
@@ -331,7 +305,7 @@ namespace CsvHash.WinForms
             try
             {
                 var fields = _fieldsCheckedListBox.CheckedItems.Cast<string>().ToArray();
-                var options = new EncryptionOptions(GetAlgorithm(), GetEncodingName(), _seedTextBox.Text);
+                var options = new EncryptionOptions(GetAlgorithm(), GetEncodingName());
                 options.Validate();
 
                 var outputPath = PromptForOutputPath(_filePathTextBox.Text);

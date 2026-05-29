@@ -10,18 +10,15 @@ namespace CsvHash.WinForms
 {
     internal sealed class EncryptionOptions
     {
-        public EncryptionOptions(string algorithm, string encodingName, string seed)
+        public EncryptionOptions(string algorithm, string encodingName)
         {
             Algorithm = string.IsNullOrWhiteSpace(algorithm) ? "SHA256" : algorithm.Trim();
             EncodingName = string.IsNullOrWhiteSpace(encodingName) ? "UTF-8" : encodingName.Trim();
-            Seed = seed ?? string.Empty;
         }
 
         public string Algorithm { get; private set; }
 
         public string EncodingName { get; private set; }
-
-        public string Seed { get; private set; }
 
         public Encoding TextEncoding
         {
@@ -31,11 +28,6 @@ namespace CsvHash.WinForms
         public void Validate()
         {
             CsvProcessor.GetEncoding(EncodingName);
-
-            if (string.Equals(Algorithm, "AES-CBC", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(Seed))
-            {
-                throw new InvalidOperationException("AES-CBC 需要填写密钥/Seed。");
-            }
 
             if (!CsvProcessor.IsSupportedAlgorithm(Algorithm))
             {
@@ -132,8 +124,7 @@ namespace CsvHash.WinForms
             return string.Equals(algorithm, "MD5", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(algorithm, "SHA256", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(algorithm, "SHA512", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(algorithm, "SM3", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(algorithm, "AES-CBC", StringComparison.OrdinalIgnoreCase);
+                || string.Equals(algorithm, "SM3", StringComparison.OrdinalIgnoreCase);
         }
 
         public static Encoding GetEncoding(string encodingName)
@@ -250,38 +241,7 @@ namespace CsvHash.WinForms
                 return ToHex(Sm3Digest.ComputeHash(bytes));
             }
 
-            if (string.Equals(algorithm, "AES-CBC", StringComparison.OrdinalIgnoreCase))
-            {
-                return EncryptAesCbc(bytes, options.Seed, options.TextEncoding);
-            }
-
             throw new InvalidOperationException("不支持的加密算法：" + algorithm);
-        }
-
-        private static string EncryptAesCbc(byte[] plaintext, string seed, Encoding encoding)
-        {
-            using (var sha256 = SHA256.Create())
-            using (var aes = Aes.Create())
-            {
-                var seedBytes = encoding.GetBytes(seed);
-                var ivSeedBytes = encoding.GetBytes("iv:" + seed);
-
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
-                aes.KeySize = 256;
-                aes.Key = sha256.ComputeHash(seedBytes);
-
-                var ivHash = sha256.ComputeHash(ivSeedBytes);
-                var iv = new byte[16];
-                Buffer.BlockCopy(ivHash, 0, iv, 0, iv.Length);
-                aes.IV = iv;
-
-                using (var encryptor = aes.CreateEncryptor())
-                {
-                    var encrypted = encryptor.TransformFinalBlock(plaintext, 0, plaintext.Length);
-                    return Convert.ToBase64String(encrypted);
-                }
-            }
         }
 
         private static string ToHex(byte[] bytes)

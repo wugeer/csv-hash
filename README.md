@@ -2,16 +2,15 @@
 
 CSV Hash 是一个简单的 Windows 桌面工具，用于对 CSV 文件中的指定字段做哈希或加密脱敏。
 
-当前发布版本使用 C# WinForms + .NET Framework 4.8 实现，目标是兼容 Windows 10/11，并尽量保持包体积小。它不依赖 Tauri/WebView2。
+当前发布版本使用 C# WinForms + .NET Framework 4.8 实现，目标是兼容 Windows 10/11，并尽量保持包体积小。
 
 ## 功能
 
 - 选择本地 CSV 文件
 - 自动读取 CSV 表头
 - 勾选一个或多个需要加密的字段
-- 支持选择加密算法：MD5、SHA256、SHA512、SM3、AES-CBC
+- 支持选择加密算法：MD5、SHA256、SHA512、SM3
 - 支持选择字符编码：UTF-8、UTF-8 BOM、UTF-16 LE、UTF-16 BE、GBK
-- AES-CBC 支持密钥/Seed 输入
 - 指定 CSV 分隔符，默认是英文逗号
 - 支持逗号、分号、竖线、制表符和自定义分隔符
 - 点击生成时弹出保存文件框，默认文件名格式：`entry-原文件名`
@@ -33,7 +32,7 @@ id,name,phone,email,city
 entry-users.csv
 ```
 
-未选择的字段会保持原值。选择的字段会按当前算法处理：MD5/SHA256/SHA512/SM3 输出十六进制摘要，AES-CBC 输出 Base64 密文。
+未选择的字段会保持原值。选择的字段会按当前算法处理为十六进制摘要。
 
 ## Windows 构建
 
@@ -89,7 +88,6 @@ Settings -> Actions -> General -> Workflow permissions -> Read and write permiss
 ## 注意事项
 
 - MD5、SHA256、SHA512、SM3 是哈希摘要，不可逆。
-- AES-CBC 是对称加密，使用界面中填写的密钥/Seed 派生密钥和 IV，输出 Base64 密文。
 - CSV 必须包含表头。
 - 分隔符必须是单字符；制表符可在界面中选择，或自定义输入 `\t`。
 - 字符编码会同时用于读取 CSV、写出 CSV，以及把字段文本转换为算法输入字节。
@@ -99,5 +97,4 @@ Settings -> Actions -> General -> Workflow permissions -> Read and write permiss
 
 ```text
 windows/CsvHash.WinForms/   Windows 发布版本源码
-src-tauri/                  旧 Tauri 实现，当前不作为 Release 目标
 ```
